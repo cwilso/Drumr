@@ -1,0 +1,530 @@
+<!--
+Copyright 2012, Google Inc.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+    * Redistributions of source code must retain the above copyright
+notice, this list of conditions and the following disclaimer.
+    * Redistributions in binary form must reproduce the above
+copyright notice, this list of conditions and the following disclaimer
+in the documentation and/or other materials provided with the
+distribution.
+    * Neither the name of Google Inc. nor the names of its
+contributors may be used to endorse or promote products derived from
+this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+-->
+
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+  "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>
+</title>
+
+<!-- Slider stuff -->
+<script type="text/javascript" src="lib/events.js"></script>
+<style type="text/css">
+  #slider { margin: 10px; }
+</style>
+
+<link rel="stylesheet" type="text/css" href = "style/simple.css" />
+<script src='http://cwilso.github.com/WebMIDIAPIShim/WebMIDIAPI.js'></script>
+
+<script type="text/javascript">
+
+// Events
+// init() once the page has finished loading.
+window.onload = init;
+
+var canvas;
+var canvasContext;
+var canvasWidth = 0;
+var canvasHeight = 0;
+var startTime;
+var lastDrawTime = -1;
+var isLoaded = false;
+var gridColor = "rgb(192,192,192)";
+var playheadColor = "rgb(80, 100, 80)";
+var noteColor = "rgb(200,60,20)";
+var midi = null;
+var kNumInstruments=6;
+
+function tempoHandler(event, ui) {
+    tempo = ui.value;
+
+    var info = document.getElementById("tempo-value");
+    info.innerHTML = "tempo = " + tempo + " BPM";
+}
+
+function highlightElement(object) {
+    if (kitElement) kitElement.style.backgroundColor = "white";
+    kitElement = object;
+
+    object.style.backgroundColor = "green";
+}
+
+var rhythm1 = [
+  1,
+  0,
+  0,
+  0,
+  
+  0,
+  0,
+  0,
+  0,
+  
+  1,
+  0,
+  1,
+  0,
+  
+  0,
+  0,
+  0,
+  0
+];
+
+var rhythm2 = [
+  0,
+  0,
+  0,
+  0,
+  
+  1,
+  0,
+  0,
+  0,
+  
+  0,
+  0,
+  0,
+  0,
+  
+  1,
+  0,
+  0,
+  0
+];
+
+var rhythm3 = [
+  0,
+  0,
+  1,
+  0,
+  
+  0,
+  0,
+  1,
+  0,
+  
+  0,
+  0,
+  1,
+  0,
+  
+  0,
+  0,
+  1,
+  1
+];
+
+
+var rhythm4 = [
+  0,
+  0,
+  0,
+  0,
+  
+  0,
+  0,
+  1,
+  0,
+  
+  0,
+  0,
+  0,
+  0,
+  
+  0,
+  0,
+  0,
+  0
+];
+
+var rhythm5 = [
+  0,
+  0,
+  0,
+  0,
+
+  0,
+  0,
+  0,
+  0,
+
+  0,
+  0,
+  0,
+  0,
+
+  0,
+  0,
+  0,
+  0
+];
+
+var rhythm6 = [
+  0,
+  0,
+  0,
+  0,
+
+  0,
+  0,
+  0,
+  1,
+
+  0,
+  1,
+  0,
+  0,
+
+  0,
+  0,
+  0,
+  0
+];
+
+var loopLength = 16;
+var rhythmIndex = 0;
+var loopNumber = 0;
+var tempo = 115.0;
+var noteTime = 0.0;
+
+function advanceNote() {
+    // Advance time by a 16th note...
+    var secondsPerBeat = 60.0 / tempo;
+    noteTime += 0.25 * secondsPerBeat;
+
+    rhythmIndex++;
+    if (rhythmIndex == loopLength) {
+        rhythmIndex = 0;
+        loopNumber++
+    }
+}
+
+function schedule() {
+    var currentTime = window.performance.now()/1000;
+
+    // The sequence starts at startTime, so normalize currentTime so that it's 0 at the start of the sequence.
+    currentTime -= startTime;
+
+    var resonance = 5.0;
+
+    while (noteTime < currentTime + 0.200) {
+        // Convert noteTime to context time.
+        var contextPlayTime = noteTime + startTime;
+        
+        // Kick
+        if (rhythm1[rhythmIndex] == 1) {
+            playDrum( 36, noteTime );
+        }
+
+        // Snare
+        if (rhythm2[rhythmIndex] == 1) {
+            playDrum( 40, noteTime );
+        }
+
+        // Hihat
+        if (rhythm3[rhythmIndex] == 1) {
+            playDrum( 42, noteTime );
+        }
+
+        // Toms    
+        if (rhythm4[rhythmIndex] == 1) {
+            playDrum( 50, noteTime );
+        }
+
+        if (rhythm5[rhythmIndex] == 1) {
+            playDrum( 47, noteTime );
+        }
+
+        if (rhythm6[rhythmIndex] == 1) {
+            playDrum( 41, noteTime );
+        }
+
+        // Attempt to synchronize drawing time with sound
+        if (noteTime != lastDrawTime) {
+            lastDrawTime = noteTime;
+            drawPlayhead(rhythmIndex);
+        }
+
+        advanceNote();
+    }
+
+    setTimeout("schedule()", 0);
+}
+
+function drawDrumGrid() {
+    // draw center
+    var width = canvas.width;
+    var height = canvas.height;
+
+    // canvasContext.strokeStyle = "rgb(150, 255, 150)";
+    canvasContext.strokeStyle = gridColor;
+    canvasContext.lineWidth = 3;
+
+    var noteSize = width / 16.0;
+    var kInset = 2;
+
+    for (inst = 0; inst < kNumInstruments; ++inst) {
+        for (i = 0; i < 16; ++i) {
+            canvasContext.strokeRect(i * noteSize + kInset, kInset + inst*noteSize,              noteSize - 2*kInset, noteSize - 2*kInset);
+        }
+    }
+}
+
+// Called when MIDI is ready
+function finishLoading() {
+    addSlider("tempo");
+    configureSlider("tempo", tempo, 50.0, 180.0, tempoHandler);
+
+    startTime = window.performance.now()/1000 + 0.160;
+
+    // Start playing
+    schedule();
+}
+
+function init() {
+    initCanvas(); 
+
+    navigator.requestMIDIAccess( onMIDIStarted, onMIDISystemError );
+}
+
+function initCanvas() {
+    canvas = document.getElementById('canvasID');
+    canvasContext = canvas.getContext('2d');
+
+    canvas.addEventListener("mousedown", handleMouseDown, true);
+    canvas.addEventListener("mousemove", handleMouseMove, true);
+    canvas.addEventListener("mouseup", handleMouseUp, true);
+
+    canvasWidth = parseFloat(window.getComputedStyle(canvas, null).width);
+    canvasHeight = parseFloat(window.getComputedStyle(canvas, null).height);
+
+    drawDrumGrid();
+
+    for (i = 0; i < 16; ++i) {
+        drawNote(rhythm1[i], i, 0);
+        drawNote(rhythm2[i], i, 1);
+        drawNote(rhythm3[i], i, 2);
+        drawNote(rhythm4[i], i, 3);
+        drawNote(rhythm5[i], i, 4);
+        drawNote(rhythm6[i], i, 5);
+    }
+}
+
+var gIsMouseDown = false;
+var gLastX = 0;
+var gLastY = 0;
+
+function handleMouseDown(event) {
+    gIsMouseDown = true;
+
+    var posx = event.clientX;
+    var posy = event.clientY;
+
+    var eventInfo = {event: event, element:canvas};
+
+    var c = getRelativeCoordinates(eventInfo);
+    var x = c.x;
+    var y = c.y;
+
+    var noteSize = canvasWidth / 16.0;
+    var kInset = 2;
+
+    var gridIndex = Math.floor(x / noteSize);
+    var instrumentIndex = Math.floor(y / noteSize);
+
+    var notes = rhythm1;
+
+    switch (instrumentIndex) {
+        case 0: notes = rhythm1; break;
+        case 1: notes = rhythm2; break;
+        case 2: notes = rhythm3; break;
+        case 3: notes = rhythm4; break;
+        case 4: notes = rhythm5; break;
+        case 5: notes = rhythm6; break;
+    }
+
+    notes[gridIndex] = 1 - notes[gridIndex];
+
+    var gridX = gridIndex * noteSize;
+
+    drawNote(notes[gridIndex], gridIndex, instrumentIndex);
+}
+
+function drawNote(draw, xindex, yindex) {
+    var noteSize = canvasWidth / 16.0;
+
+    var gridX = xindex * noteSize;
+    var gridY = yindex * noteSize
+
+    var radius = 10;
+    if (draw == 1) {
+        canvasContext.fillStyle = noteColor;
+        radius = 10;
+    } else {
+        canvasContext.fillStyle = "rgb(255,255,255)";
+        radius = 12;
+    }
+
+    canvasContext.beginPath();
+    canvasContext.arc(gridX + 0.5*noteSize, gridY + 0.5*noteSize, radius, 0, Math.PI*2, true);
+    canvasContext.fill();
+}
+
+function drawPlayhead(xindex) {
+    var noteSize = canvasWidth / 16.0;
+
+    var yindex = 0;
+
+    var kInset = 2;
+
+    var lastIndex = (xindex - 1 + 16) % 16;
+
+    for (i = 0; i < kNumInstruments; ++i) {
+        // erase old playhead
+        canvasContext.strokeStyle = gridColor;
+        canvasContext.lineWidth = 3;
+        canvasContext.strokeRect(lastIndex * noteSize + kInset, i * noteSize + kInset, noteSize - 2*kInset, noteSize - 2*kInset);
+
+        // draw new playhead
+        canvasContext.strokeStyle = playheadColor;
+        canvasContext.lineWidth = 2;
+        canvasContext.strokeRect(xindex    * noteSize + kInset, i * noteSize + kInset, noteSize - 2*kInset, noteSize - 2*kInset);
+    }
+}
+
+function handleMouseUp(event) {
+    gIsMouseDown = false;
+}
+
+function handleMouseMove(event) {
+    if (gIsMouseDown) {
+    }
+}
+
+var selectMIDIIn = null;
+var selectMIDIOut = null;
+var midiIn = null;
+var midiOut = null;
+
+function playDrum( note, time ) {
+  midiOut.send([0x99, note, 0x7f], time );
+}
+
+function midiMessageReceived( ev ) {
+  console.log( ev.data );
+  ev.data[0] += 0x09;
+  ev.data[2] = 0x7f;
+  midiOut.send( ev.data );
+}
+
+function changeMIDIInPort( ev ) {
+  midiIn = midi.getInput( midi.getInputs()[ev.target.selectedIndex] );
+  midiIn.onmessage = midiMessageReceived;
+}
+
+function changeMIDIOutPort( ev ) {
+  midiOut = midi.getOutput( midi.getOutputs()[ev.target.selectedIndex] );
+}
+
+function onMIDIStarted( access ) {
+  midi = access;
+
+  console.log("MIDI started!");
+  selectMIDIIn=document.getElementById("midiIn");
+  selectMIDIOut=document.getElementById("midiOut");
+  var list=midi.getInputs();
+
+  selectMIDIIn.options.length = 0;
+  if (list.length) {
+    for (var i=0; i<list.length; i++) {
+      selectMIDIIn.options[i]=new Option(list[i].name,list[i].fingerprint,i==0,i==0);
+    }
+    midiIn = midi.getInput( list[0] );
+    midiIn.onmessage = midiMessageReceived;
+
+    selectMIDIIn.onchange = changeMIDIInPort;
+  }
+
+  list = midi.getOutputs();
+
+  selectMIDIOut.options.length = 0;
+  if (list.length) {
+    for (var i=0; i<list.length; i++) {
+      selectMIDIOut.options[i]=new Option(list[i].name,list[i].fingerprint,i==0,i==0);
+    }
+    midiOut = midi.getOutput( list[0] );
+    selectMIDIOut.onchange = changeMIDIOutPort;
+  }
+
+  finishLoading();
+}
+
+function onMIDISystemError( msg ) {
+  console.log( "Error encountered:" + msg );
+}
+
+</script>
+</head>
+
+<body>
+
+
+<div id="info">
+</div>
+
+<canvas id="canvasID" width="600" height="226" style="border: 2px inset blue;">
+</canvas>
+
+<br><br>
+
+<!-- Sliders and other controls will be added here -->
+<div id="controls"> </div>
+
+<div id="info"> </div>
+
+  <p>
+    MIDI Input:
+    <select id=midiIn onchange='changeMidiIn();'>
+      <option value="">Not connected</option>
+    </select>
+    MIDI Output:
+    <select id=midiOut onchange='changeMidiOut();'>
+      <option value="">Not connected</option>
+    </select>
+  </p>
+
+<div id="MIDIPlugin" style="visibility:hidden; position:absolute"></div>
+
+</body>
+</html>
