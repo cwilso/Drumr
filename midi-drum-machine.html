@@ -64,6 +64,8 @@ var playheadColor = "rgb(80, 100, 80)";
 var noteColor = "rgb(200,60,20)";
 var midi = null;
 var kNumInstruments=6;
+var isPlaying = false;
+var timerID = 0;
 
 function tempoHandler(event, ui) {
     tempo = ui.value;
@@ -279,7 +281,7 @@ function schedule() {
         advanceNote();
     }
 
-    setTimeout("schedule()", 0);
+    timerID = setTimeout("schedule()", 0);
 }
 
 function drawDrumGrid() {
@@ -301,18 +303,23 @@ function drawDrumGrid() {
     }
 }
 
-// Called when MIDI is ready
-function finishLoading() {
-    addSlider("tempo");
-    configureSlider("tempo", tempo, 50.0, 180.0, tempoHandler);
-
+function onplayclicked() {
+  if (isPlaying) {
+    clearTimeout(timerID);
+    return "play";
+  } else {
     startTime = window.performance.now()/1000 + 0.160;
 
     // Start playing
     schedule();
+    return "stop";
+  }
 }
 
 function init() {
+    addSlider("tempo");
+    configureSlider("tempo", tempo, 50.0, 180.0, tempoHandler);
+
     initCanvas(); 
 
     navigator.requestMIDIAccess( onMIDIStarted, onMIDISystemError );
@@ -443,9 +450,11 @@ function playDrum( note, time ) {
 
 function midiMessageReceived( ev ) {
   console.log( ev.data );
-  ev.data[0] += 0x09;
-  ev.data[2] = 0x7f;
-  midiOut.send( ev.data );
+  if ((ev.data[0] & 0xf0) == 0x90) {
+    ev.data[0] = 0x99;
+//    ev.data[2] = 0x7f; 
+    midiOut.send( ev.data );
+  }
 }
 
 function changeMIDIInPort( ev ) {
@@ -486,8 +495,6 @@ function onMIDIStarted( access ) {
     midiOut = midi.getOutput( list[0] );
     selectMIDIOut.onchange = changeMIDIOutPort;
   }
-
-  finishLoading();
 }
 
 function onMIDISystemError( msg ) {
@@ -498,6 +505,7 @@ function onMIDISystemError( msg ) {
 </head>
 
 <body>
+  <button onclick="this.innerText = onplayclicked();">play</button>
 
 
 <div id="info">
